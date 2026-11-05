@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exchange Rate Prediction Using Neural Network</title>
+<style>
+  :root{--ink:#1d2733;--muted:#5b6775;--line:#d9dee5;--bg:#f4f6f9;--card:#fff;--accent:#1f6feb;--usd:#1f6feb;--eur:#d9480f;--gbp:#2b8a3e;--cad:#7048e8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  header{background:#12263f;color:#fff;padding:22px 20px}
+  header .wrap{max-width:1150px;margin:0 auto}
+  header h1{margin:0;font-size:24px}
+  header p{margin:6px 0 0;color:#c9d6e6;font-size:14px}
+  main{max-width:1150px;margin:0 auto;padding:20px}
+  .grid{display:grid;grid-template-columns:420px 1fr;gap:18px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:18px}
+  .card h2{font-size:16px;margin:0 0 10px}
+  .steps{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:9px 14px;font-size:14px;cursor:pointer}
+  button.secondary{background:#e8edf4;color:var(--ink)}
+  button:disabled{background:#aab6c6;cursor:not-allowed}
+  label{font-size:13px;color:var(--muted)}
+  input[type=number]{width:72px;padding:6px;border:1px solid var(--line);border-radius:5px;font-size:14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid var(--line);padding:5px 7px;text-align:right}
+  th{background:#eef2f7;text-align:center}
+  td:first-child,th:first-child{text-align:center}
+  td input[type=number]{width:100%;min-width:62px;border:0;border-radius:0;background:transparent;text-align:right;font:inherit;padding:0;-moz-appearance:textfield}
+  td input::-webkit-outer-spin-button,td input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  td input:focus{outline:2px solid var(--accent);background:#f2f7ff}
+  .tablewrap{max-height:430px;overflow:auto}
+  #status{font-size:14px;margin-top:10px;color:var(--muted)}
+  #status b{color:var(--ink)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+  @media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center}
+  .kpi .cur{font-weight:700}
+  .kpi .val{font-size:22px;font-weight:700;margin:2px 0}
+  .kpi .sub{font-size:12px;color:var(--muted)}
+  svg text{font-family:inherit}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:6px}
+  .legend span::before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:middle;background:var(--c)}
+  .note{font-size:12px;color:var(--muted)}
+  footer{max-width:1150px;margin:0 auto;padding:0 20px 30px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Exchange Rate Prediction Using Neural Network</h1>
+  <p>Predicts the Naira exchange rate against the US Dollar, Euro, British Pound and Canadian Dollar. The neural network is trained in your browser; no installation is needed.</p>
+</div></header>
+
+<main>
+  <div class="card">
+    <div class="steps">
+      <button id="btnTrain">1. Train Network</button>
+      <button id="btnPredict" disabled>2. Predict Next Year</button>
+      <button id="btnReset" class="secondary">Reset Data</button>
+      <span style="flex:1"></span>
+      <label>Hidden neurons <input type="number" id="hidden" value="10" min="2" max="40"></label>
+      <label>Random seed <input type="number" id="seed" value="1" min="1"></label>
+    </div>
+    <div id="status">Step 1: click <b>Train Network</b>. You can edit the data in the table or add a new year first.</div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Annual average exchange rates (₦ per unit)</h2>
+        <div class="tablewrap"><table id="dataTable"></table></div>
+        <div class="steps" style="margin-top:10px">
+          <button class="secondary" id="btnAdd">+ Add year</button>
+          <button class="secondary" id="btnRemove">− Remove last year</button>
+        </div>
+        <p class="note">Source: Central Bank of Nigeria, 2006–2020. Click any value to edit it.</p>
+      </div>
+      <div class="card">
+        <h2>Training summary</h2>
+        <table id="summary"><tr><td colspan="2" style="text-align:center">Not trained yet.</td></tr></table>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2 id="predTitle">Prediction</h2>
+        <div class="kpis" id="kpis"></div>
+        <svg id="chart" viewBox="0 0 700 340" width="100%" role="img" aria-label="Exchange rate chart"></svg>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="card">
+        <h2>Results</h2>
+        <table id="results"><tr><td style="text-align:center">Train the network and click Predict Next Year.</td></tr></table>
+      </div>
+      <div class="card">
+        <h2>Training performance (mean squared error)</h2>
+        <svg id="perf" viewBox="0 0 700 240" width="100%" role="img" aria-label="Training performance chart"></svg>
+        <div class="legend"><span style="--c:#1f6feb">Training</span><span style="--c:#2b8a3e">Validation</span><span style="--c:#d9480f">Test</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>
+  Method: multilayer perceptron (4 inputs, tan-sigmoid hidden layer, 4 linear outputs) trained with the Levenberg–Marquardt algorithm.
+  This year's rates are the inputs and next year's rates are the targets. Data are scaled to −1…1 and divided at random into 60% training, 20% validation and 20% test,
+  with early stopping after 6 validation failures. A linear trend (first-degree polynomial) is shown for comparison.
+  B.Sc. Computer Science project by Lobarine Emmanuel Kinane. Predictions are indications for planning, not financial advice.
+</footer>
+
+<script>
+"use strict";
+const CUR = ["USD","EUR","GBP","CAD"];
+const COLORS = ["#1f6feb","#d9480f","#2b8a3e","#7048e8"];
+const DEFAULT_DATA = [
+ [2006,128.6150,169.7328,251.9442,110.4703],[2007,118.0050,173.9755,235.1845,120.5981],
+ [2008,139.6900,196.8683,201.1030,114.3269],[2009,150.2500,215.1252,241.1636,142.7128],
+ [2010,152.3000,202.0655,234.4518,152.1868],[2011,162.2000,210.4770,252.0018,159.4028],
+ [2012,155.7500,205.8551,251.5910,156.2735],[2013,161.3500,222.9260,266.5659,151.6325],
+ [2014,183.4997,223.4061,285.7492,158.1794],[2015,198.9250,217.0878,294.9384,143.2634],
+ [2016,314.9785,332.4525,388.6138,234.6163],[2017,359.9997,431.9361,486.1204,286.3192],
+ [2018,364.5022,417.1145,462.8465,267.3966],[2019,362.4657,406.5470,476.2999,277.5679],
+ [2020,381.0027,468.1887,514.9142,298.0250]];
+
+let data = DEFAULT_DATA.map(r => r.slice());
+let model = null, prediction = null;
+
+/* ---------------- Neural network core ---------------- */
+function rng(seed){ let a = seed >>> 0; return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function minmax(rows){ const n = rows[0].length, mn = Array(n).fill(Infinity), mx = Array(n).fill(-Infinity);
+  rows.forEach(r => r.forEach((v,i) => { if (v < mn[i]) mn[i] = v; if (v > mx[i]) mx[i] = v; }));
+  return {mn, mx}; }
+const scale = (v, s, i) => s.mx[i] === s.mn[i] ? 0 : 2 * (v - s.mn[i]) / (s.mx[i] - s.mn[i]) - 1;
+const unscale = (v, s, i) => (v + 1) / 2 * (s.mx[i] - s.mn[i]) + s.mn[i];
+
+function forward(w, H, x){            // w: parameter vector; x: 4 normalised inputs
+  const h = new Array(H), y = new Array(4);
+  for (let j = 0; j < H; j++){ let s = w[4*H + j]; for (let i = 0; i < 4; i++) s += w[j*4 + i] * x[i]; h[j] = Math.tanh(s); }
+  const o2 = 5*H;
+  for (let o = 0; o < 4; o++){ let s = w[o2 + 4*H + o]; for (let j = 0; j < H; j++) s += w[o2 + o*H + j] * h[j]; y[o] = s; }
+  return {h, y};
+}
+function sse(w, H, X, T, idx){ let s = 0; for (const k of idx){ const y = forward(w, H, X[k]).y; for (let o = 0; o < 4; o++){ const e = T[k][o] - y[o]; s += e*e; } } return s; }
+
+function solve(A, b){                  // Gaussian elimination with partial pivoting
+  const n = b.length; const M = A.map((r, i) => r.concat([b[i]]));
+  for (let c = 0; c < n; c++){
+    let p = c; for (let r = c+1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    if (Math.abs(M[p][c]) < 1e-300) return null;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = c+1; r < n; r++){ const f = M[r][c] / M[c][c]; if (f) for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  const x = new Array(n);
+  for (let r = n-1; r >= 0; r--){ let s = M[r][n]; for (let k = r+1; k < n; k++) s -= M[r][k] * x[k]; x[r] = s / M[r][r]; }
+  return x;
+}
+
+function train(rows, H, seed){
+  const rates = rows.map(r => r.slice(1));
+  const Xraw = rates.slice(0, -1), Traw = rates.slice(1);
+  const sx = minmax(Xraw), st = minmax(Traw);
+  const X = Xraw.map(r => r.map((v,i) => scale(v, sx, i)));
+  const T = Traw.map(r => r.map((v,i) => scale(v, st, i)));
+  const n = X.length, rand = rng(seed);
+  // random division 60/20/20 (like MATLAB dividerand)
+  const perm = [...Array(n).keys()]; for (let i = n-1; i > 0; i--){ const j = Math.floor(rand()*(i+1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  const nVal = Math.max(1, Math.round(0.2*n)), nTest = Math.max(1, Math.round(0.2*n));
+  const valIdx = perm.slice(0, nVal), testIdx = perm.slice(nVal, nVal+nTest), trIdx = perm.slice(nVal+nTest);
+  // initialise weights
+  const P = 4*H + H + 4*H + 4;
+  let w = Array.from({length: P}, () => (rand()*2 - 1) * 0.5);
+  let mu = 0.001; const muMax = 1e10, maxFail = 6, maxEpochs = 1000, minGrad = 1e-7;
+  const hist = {train: [], val: [], test: []};
+  const mse = (ww, idx) => sse(ww, H, X, T, idx) / (idx.length * 4);
+  let bestW = w.slice(), bestVal = mse(w, valIdx), bestEpoch = 0, fails = 0, stop = "Maximum epochs reached", epoch = 0, grad = 0;
+  hist.train.push(mse(w, trIdx)); hist.val.push(bestVal); hist.test.push(mse(w, testIdx));
+  for (epoch = 1; epoch <= maxEpochs; epoch++){
+    // Jacobian of the outputs with respect to the parameters (training samples only)
+    const J = [], E = [];
+    for (const k of trIdx){
+      const {h, y} = forward(w, H, X[k]);
+      for (let o = 0; o < 4; o++){
+        const row = new Array(P).fill(0), o2 = 5*H;
+        for (let j = 0; j < H; j++){
+          const d = w[o2 + o*H + j] * (1 - h[j]*h[j]);
+          for (let i = 0; i < 4; i++) row[j*4 + i] = d * X[k][i];
+          row[4*H + j] = d;
+          row[o2 + o*H + j] = h[j];
+        }
+        row[o2 + 4*H + o] = 1;
+        J.push(row); E.push(T[k][o] - y[o]);
+      }
+    }
+    const JtJ = Array.from({length: P}, () => new Array(P).fill(0)), JtE = new Array(P).fill(0);
+    for (let r = 0; r < J.length; r++){ const row = J[r];
+      for (let a = 0; a < P; a++){ if (!row[a]) continue; JtE[a] += row[a] * E[r]; for (let b = a; b < P; b++) JtJ[a][b] += row[a] * row[b]; } }
+    for (let a = 0; a < P; a++) for (let b = 0; b < a; b++) JtJ[a][b] = JtJ[b][a];
+    grad = Math.sqrt(JtE.reduce((s, v) => s + 4*v*v, 0));
+    if (grad < minGrad){ stop = "Minimum gradient reached"; break; }
+    const cur = sse(w, H, X, T, trIdx); let improved = false;
+    while (mu <= muMax){
+      const A = JtJ.map((r, i) => { const c = r.slice(); c[i] += mu; return c; });
+      const dw = solve(A, JtE);
+      if (dw){ const wn = w.map((v, i) => v + dw[i]); if (sse(wn, H, X, T, trIdx) < cur){ w = wn; mu = Math.max(mu / 10, 1e-20); improved = true; break; } }
+      mu *= 10;
+    }
+    if (!improved){ stop = "Maximum mu reached"; break; }
+    const v = mse(w, valIdx);
+    hist.train.push(mse(w, trIdx)); hist.val.push(v); hist.test.push(mse(w, testIdx));
+    if (v < bestVal){ bestVal = v; bestW = w.slice(); bestEpoch = epoch; fails = 0; }
+    else if (++fails >= maxFail){ stop = "Validation stop"; break; }
+  }
+  if (epoch > maxEpochs) epoch = maxEpochs;
+  w = bestW;
+  const predictRaw = r => forward(w, H, r.map((v,i) => scale(v, sx, i))).y.map((v,i) => unscale(v, st, i));
+  // evaluation in Naira
+  const Yall = Xraw.map(predictRaw);
+  const rmse = [], mape = [], R = [];
+  for (let o = 0; o < 4; o++){
+    let se = 0, ape = 0;
+    for (const k of testIdx){ const e = Traw[k][o] - Yall[k][o]; se += e*e; ape += Math.abs(e / Traw[k][o]); }
+    rmse.push(Math.sqrt(se / testIdx.length)); mape.push(ape / testIdx.length * 100);
+    const t = Traw.map(r => r[o]), y = Yall.map(r => r[o]);
+    const mt = t.reduce((a,b)=>a+b)/t.length, my = y.reduce((a,b)=>a+b)/y.length;
+    let c = 0, vt = 0, vy = 0; for (let k = 0; k < t.length; k++){ c += (t[k]-mt)*(y[k]-my); vt += (t[k]-mt)**2; vy += (y[k]-my)**2; }
+    R.push(c / Math.sqrt(vt * vy));
+  }
+  return {H, predictRaw, rmse, mape, R, hist, epochs: hist.train.length - 1, bestEpoch, bestVal, stop,
+          sizes: [trIdx.length, valIdx.length, testIdx.length], params: P};
+}
+
+function linearTrend(years, vals, at){
+  const n = years.length, mx = years.reduce((a,b)=>a+b)/n, my = vals.reduce((a,b)=>a+b)/n;
+  let sxy = 0, sxx = 0; for (let i = 0; i < n; i++){ sxy += (years[i]-mx)*(vals[i]-my); sxx += (years[i]-mx)**2; }
+  const b = sxy / sxx; return my + b * (at - mx);
+}
+
+/* ---------------- Interface ---------------- */
+const $ = id => document.getElementById(id);
+const fmt = (v, d=2) => Number(v).toLocaleString("en-NG", {minimumFractionDigits: d, maximumFractionDigits: d});
+
+function renderData(){
+  let h = "<tr><th>Year</th>" + CUR.map(c => `<th>${c}</th>`).join("") + "</tr>";
+  data.forEach((r, i) => {
+    h += `<tr><td>${r[0]}</td>` + r.slice(1).map((v, j) =>
+      `<td><input type="number" step="0.0001" data-r="${i}" data-c="${j+1}" value="${v}" aria-label="${CUR[j]} ${r[0]}"></td>`).join("") + "</tr>";
+  });
+  $("dataTable").innerHTML = h;
+  $("dataTable").querySelectorAll("input").forEach(inp => inp.addEventListener("change", e => {
+    const v = parseFloat(e.target.value);
+    if (!(v > 0)){ e.target.value = data[+e.target.dataset.r][+e.target.dataset.c]; return; }
+    data[+e.target.dataset.r][+e.target.dataset.c] = v; dataChanged();
+  }));
+}
+function dataChanged(){
+  model = null; prediction = null; $("btnPredict").disabled = true;
+  $("status").innerHTML = "Data changed. Click <b>Train Network</b> to retrain on the new data.";
+  renderAll();
+}
+
+function lineChart(svg, series, opts){
+  const W = 700, Hh = +svg.getAttribute("viewBox").split(" ")[3], m = {l: 62, r: 16, t: 14, b: 34};
+  const xs = series.flatMap(s => s.pts.map(p => p[0])), ys = series.flatMap(s => s.pts.map(p => p[1]));
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = opts.y0 ?? Math.min(...ys), y1 = Math.max(...ys);
+  if (opts.log){ y0 = Math.log10(Math.max(Math.min(...ys), 1e-12)); y1 = Math.log10(Math.max(...ys)); }
+  const pad = (y1 - y0) * 0.06 || 1; if (!opts.log && opts.y0 === undefined) y0 -= pad; y1 += pad;
+  const X = v => m.l + (v - x0) / ((x1 - x0) || 1) * (W - m.l - m.r);
+  const Y = v => { const u = opts.log ? Math.log10(Math.max(v, 1e-12)) : v; return Hh - m.b - (u - y0) / ((y1 - y0) || 1) * (Hh - m.t - m.b); };
+  let g = "";
+  const ny = 5; for (let i = 0; i <= ny; i++){ const u = y0 + (y1 - y0) * i / ny, yy = Hh - m.b - (Hh - m.t - m.b) * i / ny;
+    const lab = opts.log ? Number(Math.pow(10, u).toPrecision(2)).toString() : fmt(u, 0);
+    g += `<line x1="${m.l}" x2="${W-m.r}" y1="${yy}" y2="${yy}" stroke="#e6eaf0"/><text x="${m.l-6}" y="${yy+4}" font-size="11" text-anchor="end" fill="#5b6775">${lab}</text>`; }
+  const xt = opts.xticks || [];
+  xt.forEach(v => { g += `<text x="${X(v)}" y="${Hh-m.b+16}" font-size="11" text-anchor="middle" fill="#5b6775">${v}</text>`; });
+  g += `<line x1="${m.l}" x2="${W-m.r}" y1="${Hh-m.b}" y2="${Hh-m.b}" stroke="#9aa5b1"/>`;
+  if (opts.xlabel) g += `<text x="${(W+m.l)/2}" y="${Hh-4}" font-size="12" text-anchor="middle" fill="#5b6775">${opts.xlabel}</text>`;
+  if (opts.ylabel) g += `<text transform="translate(14,${(Hh-m.b+m.t)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#5b6775">${opts.ylabel}</text>`;
+  series.forEach(s => {
+    const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1)).join("");
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width||2}" ${s.dash ? 'stroke-dasharray="6 4"' : ""}/>`;
+    if (s.dots) s.pts.forEach(p => { g += `<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="${s.dotR||3}" fill="${s.hollow ? "#fff" : s.color}" stroke="${s.color}" stroke-width="2"><title>${s.name} ${p[0]}: ₦${fmt(p[1])}</title></circle>`; });
+  });
+  if (opts.marker !== undefined){ g += `<line x1="${X(opts.marker)}" x2="${X(opts.marker)}" y1="${m.t}" y2="${Hh-m.b}" stroke="#9aa5b1" stroke-dasharray="3 3"/>`; }
+  svg.innerHTML = g;
+}
+
+function renderChart(){
+  const years = data.map(r => r[0]);
+  const series = CUR.map((c, k) => ({name: c, color: COLORS[k], dots: true, pts: data.map(r => [r[0], r[k+1]])}));
+  let xticks = years.filter((y, i) => i % 2 === 0 || i === years.length - 1);
+  if (prediction){
+    CUR.forEach((c, k) => series.push({name: c + " prediction", color: COLORS[k], dash: true, dots: true, hollow: true, dotR: 5,
+      pts: [[years.at(-1), data.at(-1)[k+1]], [prediction.year, prediction.nn[k]]]}));
+    xticks = xticks.concat([prediction.year]);
+  }
+  lineChart($("chart"), series, {xticks, xlabel: "Year", ylabel: "Naira per unit of currency", marker: prediction ? years.at(-1) : undefined});
+  $("legend").innerHTML = CUR.map((c, k) => `<span style="--c:${COLORS[k]}">${c}</span>`).join("") +
+    (prediction ? `<span style="--c:#9aa5b1">Dashed: neural network prediction for ${prediction.year}</span>` : "");
+}
+
+function renderPerf(){
+  if (!model){ $("perf").innerHTML = `<text x="350" y="120" text-anchor="middle" font-size="13" fill="#5b6775">Train the network to see its performance per epoch.</text>`; return; }
+  const h = model.hist, ep = h.train.map((_, i) => i);
+  const mk = (arr, color) => ({color, pts: arr.map((v, i) => [ep[i], v]), dots: false});
+  const step = Math.max(1, Math.ceil(model.epochs / 8));
+  lineChart($("perf"), [mk(h.train, "#1f6feb"), mk(h.val, "#2b8a3e"), mk(h.test, "#d9480f")],
+    {log: true, xticks: ep.filter(e => e % step === 0), xlabel: "Epoch", ylabel: "MSE (log scale)", marker: model.bestEpoch});
+}
+
+function renderSummary(){
+  if (!model){ $("summary").innerHTML = `<tr><td colspan="2" style="text-align:center">Not trained yet.</td></tr>`; return; }
+  const rows = [
+    ["Network structure", `4 inputs – ${model.H} hidden (tan-sigmoid) – 4 outputs (linear)`],
+    ["Adjustable weights and biases", model.params],
+    ["Training algorithm", "Levenberg–Marquardt"],
+    ["Samples (train / validation / test)", model.sizes.join(" / ")],
+    ["Epochs", model.epochs],
+    ["Stopped because", model.stop],
+    ["Best validation MSE (scaled)", `${model.bestVal.toExponential(3)} at epoch ${model.bestEpoch}`],
+    ["Regression R, all data", CUR.map((c, k) => `${c} ${model.R[k].toFixed(3)}`).join(", ")]];
+  $("summary").innerHTML = rows.map(r => `<tr><td style="text-align:left">${r[0]}</td><td style="text-align:left">${r[1]}</td></tr>`).join("");
+}
+
+function renderResults(){
+  if (!prediction){
+    $("kpis").innerHTML = CUR.map((c, k) => `<div class="kpi"><div class="cur" style="color:${COLORS[k]}">${c}</div><div class="val">₦${fmt(data.at(-1)[k+1])}</div><div class="sub">actual ${data.at(-1)[0]}</div></div>`).join("");
+    $("predTitle").textContent = "Latest exchange rates";
+    $("results").innerHTML = `<tr><td style="text-align:center">Train the network and click Predict Next Year.</td></tr>`;
+    return;
+  }
+  const p = prediction, last = data.at(-1);
+  $("predTitle").textContent = `Predicted exchange rates for ${p.year}`;
+  $("kpis").innerHTML = CUR.map((c, k) => { const ch = (p.nn[k] / last[k+1] - 1) * 100;
+    return `<div class="kpi"><div class="cur" style="color:${COLORS[k]}">${c}</div><div class="val">₦${fmt(p.nn[k])}</div><div class="sub">${ch >= 0 ? "▲" : "▼"} ${fmt(Math.abs(ch),1)}% vs ${last[0]}</div></div>`; }).join("");
+  let h = `<tr><th>Currency</th><th>Actual ${last[0]}</th><th>Neural network ${p.year}</th><th>Linear trend ${p.year}</th><th>Test RMSE</th><th>Test MAPE</th></tr>`;
+  CUR.forEach((c, k) => { h += `<tr><td>${c}</td><td>${fmt(last[k+1])}</td><td><b>${fmt(p.nn[k])}</b></td><td>${fmt(p.trend[k])}</td><td>${fmt(model.rmse[k])}</td><td>${fmt(model.mape[k])}%</td></tr>`; });
+  $("results").innerHTML = h;
+}
+
+function renderAll(){ renderData(); renderChart(); renderPerf(); renderSummary(); renderResults(); }
+
+$("btnTrain").addEventListener("click", () => {
+  const H = Math.min(40, Math.max(2, parseInt($("hidden").value) || 10));
+  const seed = Math.max(1, parseInt($("seed").value) || 1);
+  if (data.length < 6){ $("status").textContent = "At least 6 years of data are needed."; return; }
+  $("status").innerHTML = "Training the neural network…"; $("btnTrain").disabled = true;
+  setTimeout(() => {
+    const t0 = performance.now();
+    model = train(data, H, seed); prediction = null;
+    const secs = ((performance.now() - t0) / 1000).toFixed(2);
+    $("btnTrain").disabled = false; $("btnPredict").disabled = false;
+    $("status").innerHTML = `Training finished in ${secs} s after <b>${model.epochs}</b> epochs (${model.stop}). Step 2: click <b>Predict Next Year</b>.`;
+    renderChart(); renderPerf(); renderSummary(); renderResults();
+  }, 30);
+});
+
+$("btnPredict").addEventListener("click", () => {
+  if (!model) return;
+  const years = data.map(r => r[0]), last = data.at(-1), year = last[0] + 1;
+  const nn = model.predictRaw(last.slice(1));
+  const trend = CUR.map((c, k) => linearTrend(years, data.map(r => r[k+1]), year));
+  prediction = {year, nn, trend};
+  $("status").innerHTML = `Predicted rates for <b>${year}</b> are shown. Try another random seed or number of hidden neurons and train again to compare.`;
+  renderChart(); renderResults();
+});
+
+$("btnAdd").addEventListener("click", () => { const last = data.at(-1); data.push([last[0] + 1, ...last.slice(1)]); dataChanged();
+  $("status").innerHTML = `Year ${last[0] + 1} added with a copy of the ${last[0]} values. Edit its rates in the table, then click <b>Train Network</b>.`; });
+$("btnRemove").addEventListener("click", () => { if (data.length > 6){ data.pop(); dataChanged(); } });
+$("btnReset").addEventListener("click", () => { data = DEFAULT_DATA.map(r => r.slice()); dataChanged(); $("status").innerHTML = "Data reset to the original 2006–2020 values. Click <b>Train Network</b>."; });
+
+renderAll();
+</script>
+</body>
+</html>
